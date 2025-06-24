@@ -255,4 +255,4 @@ class Client:
             self._finish(f"[ERROR]: {e}")
 
 if __name__ == "__main__":
-    Client(client_id=1).run()
+    Client(client_id=2).run()
