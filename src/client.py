@@ -5,7 +5,6 @@ from security.auth import *
 from cryptography import x509
 from cryptography.fernet import Fernet
 import os
-import base64
 
 class Client: 
     def __init__(self, client_id, host="127.0.0.1", port=5000):
@@ -155,22 +154,22 @@ class Client:
                     # Must encrypt a topic key with the public key that it received
                     elif message["cmd"] == "keys":
                         
-                        key = base64_to_key(self.topic_keys[message['topic']])
-                        rcv_pub_key = load_public_key_from_bytes(base64_to_key(message['content']))
+                        key = base64_to_bytes(self.topic_keys[message['topic']])
+                        rcv_pub_key = load_public_key_from_bytes(base64_to_bytes(message['content']))
                         cipher_key = asymmetric_encrypt(key, rcv_pub_key)
-                        cipher_key_str = key_to_base64(cipher_key)
+                        cipher_key_str = bytes_to_base64(cipher_key)
                         self._format_and_send_msg('keys', topic, cipher_key_str)
                                         
                    # I think its done      
                     elif message["cmd"] == "topic_key":
-                        cipher_key = base64_to_key(message['content'])                    
+                        cipher_key = base64_to_bytes(message['content'])                    
                         key = asymmetric_decrypt(cipher_key, self.private_key)
                         save_topic_key(topic, key, self.TOPIC_KEY_DIR)
-                        self.topic_keys[topic] = key_to_base64(key)
+                        self.topic_keys[topic] = bytes_to_base64(key)
                     
                     # Receives an actual msg from the broker
                     elif message["cmd"] == "msg":
-                        key = Fernet(base64_to_key(self.topic_keys[topic]))
+                        key = Fernet(base64_to_bytes(self.topic_keys[topic]))
                         plaintext = key.decrypt(message['content'].encode()).decode()
                         print(f'[{topic}]: {plaintext}')
                     
@@ -195,7 +194,7 @@ class Client:
         if topic not in self.topic_keys:
             print(f'You must be subscribed to the topic "{topic}" to publish there')
             return
-        topic_key = Fernet(base64_to_key(self.topic_keys[topic]))
+        topic_key = Fernet(base64_to_bytes(self.topic_keys[topic]))
         encrypted_msg = topic_key.encrypt(msg.encode())
         self._format_and_send_msg("publish", topic, encrypted_msg.decode())
     
