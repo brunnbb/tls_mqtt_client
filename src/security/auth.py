@@ -62,6 +62,8 @@ def delete_saved_key(topic: str, key_dir: str) -> None:
 def load_keys_from_dir(path: str) -> dict[str, str]:
     all_saved_keys = {}
     for file_name in os.listdir(path):
+        if file_name == ".gitkeep":
+            continue
         full_path = os.path.join(path, file_name)
         with open(full_path, "rb") as f:
             key = f.read()
