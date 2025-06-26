@@ -15,7 +15,7 @@ class Client:
         
         self.KEY_DIR = f"src/security/keys"
         self.CERT_DIR = f"src/security/certificates"
-        self.TOPIC_KEY_DIR = f"src/security/topic_keys"
+        self.TOPIC_KEY_DIR = f"src/security/topic_keys/client_{client_id}"
         self.CA_CERT_PATH = f"{self.CERT_DIR}/ca.crt"
         self.PUBLIC_KEY_PATH = f"{self.KEY_DIR}/public_key_{client_id}.pem"
         self.PRIVATE_KEY_PATH = f"{self.KEY_DIR}/private_key_{client_id}.pem"
@@ -61,7 +61,7 @@ class Client:
 
     def _auth_handshake(self):
         try:
-            # The client receives the client certificate and its challenge
+            # The client receives the broker certificate and a proof
             cert_bytes = self._receive_data()
             msg_bytes = self._receive_data()
             signature_bytes = self._receive_data()
@@ -83,7 +83,7 @@ class Client:
             else:
                 raise Exception("❌ The broker failed its challenge")
 
-            # The client sends its certificate and a challenge
+            # The client sends its certificate and a proof
             self._send_file(self.CLIENT_CERT_PATH)
             msg = os.urandom(32)
             signature = signing(self.private_key, msg)
@@ -122,52 +122,48 @@ class Client:
                 if message:
                     topic = message["topic"]
                     
-                    #TODO fix this flux
                     if message["cmd"] == "create":
                         if message["content"] == "success":
                             key = generate_and_save_topic_key(topic, self.TOPIC_KEY_DIR)
                             self.topic_keys[topic] = key
                             print(f"{topic} was created")
                         elif message["content"] == "all_clear":
-                            print(f"All the keys have been sent")   
+                            print(f"[BROKER] All the keys have been sent")   
                         else:
-                            print(f"{topic} already exists")
+                            print(f'[BROKER] The topic "{topic}" already exists')
 
                     elif message["cmd"] == "subscribe":
                         if message["content"] == "success":
-                            print(f"You subscribed to {topic}")
+                            print(f"[BROKER] You subscribed to {topic}")
                         else:
-                            print(f"{topic} does not exist")
+                            print(f'[BROKER] The topic "{topic}" does not exist')
 
                     elif message["cmd"] == "unsubscribe":
                         if message["content"] == "success":
-                            print(f"You unsubscribed from {topic}")
+                            print(f"[BROKER] You unsubscribed from {topic}")
                         else:
-                            print(f"You failed to usubscribed from {topic}")
+                            print(f"[BROKER] You failed to usubscribed from {topic}")
 
                     elif message["cmd"] == "publish":
                         if message["content"] == "success":
-                            print(f"Publish to the topic {topic} was delivered")
+                            print(f"[BROKER] Publish to the topic {topic} was delivered")
                         else:
-                            print(f"Failed to publish to the topic {topic}")
+                            print(f"[BROKER] Failed to publish to the topic {topic}")
 
                     # Must encrypt a topic key with the public key that it received
                     elif message["cmd"] == "keys":
-                        
                         key = base64_to_bytes(self.topic_keys[message['topic']])
                         rcv_pub_key = load_public_key_from_bytes(base64_to_bytes(message['content']))
                         cipher_key = asymmetric_encrypt(key, rcv_pub_key)
                         cipher_key_str = bytes_to_base64(cipher_key)
                         self._format_and_send_msg('keys', topic, cipher_key_str)
-                                        
-                   # I think its done      
+                                            
                     elif message["cmd"] == "topic_key":
                         cipher_key = base64_to_bytes(message['content'])                    
                         key = asymmetric_decrypt(cipher_key, self.private_key)
                         save_topic_key(topic, key, self.TOPIC_KEY_DIR)
                         self.topic_keys[topic] = bytes_to_base64(key)
                     
-                    # Receives an actual msg from the broker
                     elif message["cmd"] == "msg":
                         key = Fernet(base64_to_bytes(self.topic_keys[topic]))
                         plaintext = key.decrypt(message['content'].encode()).decode()
@@ -180,19 +176,19 @@ class Client:
 
     def _create(self, topic):
         if topic in self.topic_keys:
-            print(f'The topic "{topic}" already exists')
+            print(f'[CLIENT] The topic "{topic}" already exists')
             return
         self._format_and_send_msg("create", topic)
 
     def _subscribe(self, topic):
         if topic in self.topic_keys:
-            print(f'You are already subscribed to the topic "{topic}"')
+            print(f'[CLIENT] You are already subscribed to the topic "{topic}"')
             return
         self._format_and_send_msg("subscribe", topic)
 
     def _publish(self, topic, msg):
         if topic not in self.topic_keys:
-            print(f'You must be subscribed to the topic "{topic}" to publish there')
+            print(f'[CLIENT] You must be subscribed to the topic "{topic}" to publish there')
             return
         topic_key = Fernet(base64_to_bytes(self.topic_keys[topic]))
         encrypted_msg = topic_key.encrypt(msg.encode())
@@ -200,7 +196,8 @@ class Client:
     
     def _unsubscribe(self, topic):
         if topic not in self.topic_keys:
-            print(f'You do not have the topic "{topic}" saved locally')
+            print(f'[CLIENT] You do not have the topic "{topic}" saved locally')
+            return
         self.topic_keys.pop(topic)
         delete_saved_key(topic, self.TOPIC_KEY_DIR)
         self._format_and_send_msg("unsubscribe", topic)
@@ -254,4 +251,5 @@ class Client:
             self._finish(f"[ERROR]: {e}")
 
 if __name__ == "__main__":
-    Client(client_id=2).run()
+    client = Client(client_id=1, host="10.151.55.67")
+    client.run()
