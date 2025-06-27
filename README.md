@@ -1,6 +1,6 @@
 # 🔐 Secure TLS MQTT Client
 
-This is a university project implementing a **secure MQTT-like client** that connects to a custom broker using certificates, digital signatures, and both asymmetric and symmetric encryption to simulate TLS. The goal is to enable end-to-end encrypted publish/subscribe messaging between clients and a broker.
+This is a university project implementing a **secure MQTT-like client** that connects to a custom broker using certificates, digital signatures, and both asymmetric and symmetric encryption to simulate TLS. The goal is to enable end-to-end encrypted publish/subscribe messaging between clients through a broker.
 
 ## 📚 Overview
 
