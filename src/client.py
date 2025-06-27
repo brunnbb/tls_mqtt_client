@@ -25,7 +25,7 @@ class Client:
         self.private_key = load_private_key(self.PRIVATE_KEY_PATH)
         
         self.running = True
-        self.session_key = Fernet(Fernet.generate_key())
+        self.session_key = None
         self.topic_keys: dict[str, str] = {}
 
     def _finish(self, msg):
@@ -101,7 +101,7 @@ class Client:
     def _receive_msg(self):
         cipher_data = self._receive_data()
         if cipher_data:
-            data = self.session_key.decrypt(cipher_data)
+            data = self.session_key.decrypt(cipher_data) # type: ignore
             message = json.loads(data.decode())
             return message
 
@@ -112,7 +112,7 @@ class Client:
         if content:
             data["content"] = content
         raw = json.dumps(data).encode()
-        encrypted = self.session_key.encrypt(raw)
+        encrypted = self.session_key.encrypt(raw) # type: ignore
         self._send_data(encrypted)
 
     def _listen_to_broker(self):
@@ -157,7 +157,8 @@ class Client:
                         cipher_key = asymmetric_encrypt(key, rcv_pub_key)
                         cipher_key_str = bytes_to_base64(cipher_key)
                         self._format_and_send_msg('keys', topic, cipher_key_str)
-                                            
+                    
+                    # Receives the topic key for the topic that it requested to susbcribe to                       
                     elif message["cmd"] == "topic_key":
                         cipher_key = base64_to_bytes(message['content'])                    
                         key = asymmetric_decrypt(cipher_key, self.private_key)
@@ -209,14 +210,14 @@ class Client:
             print(f"\nConnected to server at {self.host}:{self.port}")
             self._auth_handshake()
             
-            print("\nAvailable commands: ")
-            print("- create <topic>")
-            print("- subscribe <topic>")
-            print("- publish <topic> <message>")
-            print("- unsubscribe <topic>")
-            print("- exit\n")
-            
-            threading.Thread(target=self._listen_to_broker, daemon=True).start()
+            if self.running:
+                print("\nAvailable commands: ")
+                print("- create <topic>")
+                print("- subscribe <topic>")
+                print("- publish <topic> <message>")
+                print("- unsubscribe <topic>")
+                print("- exit\n")
+                threading.Thread(target=self._listen_to_broker, daemon=True).start()
             
             while self.running:
                 try:
@@ -251,6 +252,6 @@ class Client:
             self._finish(f"[ERROR]: {e}")
 
 if __name__ == "__main__":
-    client = Client(client_id=1, host="10.151.55.67")
+    client = Client(client_id=1)
     client.run()
         
